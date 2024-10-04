@@ -262,12 +262,8 @@ def main():
     palavra_indesejada = "absolve OR absolvido"
     termo_pesquisa += "-" + palavra_indesejada
     num_links = 50  # Número de links
-    caminho_output = os.path.join(
-        os.path.join(os.environ["USERPROFILE"]),
-        PASTA_RAIZ,
-    )  # Caminho para salvar
 
-    diretorio_saida = os.path.join(caminho_output, "output")
+    diretorio_saida = os.path.join(PASTA_RAIZ, "output")
     if not os.path.exists(diretorio_saida):
         os.makedirs(diretorio_saida)
 
