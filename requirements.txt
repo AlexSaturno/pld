@@ -4,6 +4,7 @@ urllib3==2.2.2
 streamlit==1.36.0
 streamlit-aggrid==1.0.5
 openai==1.44.1
+openpyxl==3.1.5
 pydantic==2.8.2
 langchain==0.2.6
 langchain-community==0.2.6
