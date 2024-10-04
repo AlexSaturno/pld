@@ -6,6 +6,7 @@ streamlit-aggrid==1.0.5
 openai==1.44.1
 pydantic==2.8.2
 langchain==0.2.6
+langchain-community==0.2.6
 langchain-openai==0.1.17
 langchain-core==0.2.23
 pandas==1.5.3
