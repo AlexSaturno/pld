@@ -127,7 +127,8 @@ def extrair_conteudo_links(links):
                     for p in soup.find_all(["p", "div", "span", "article", "section"])
                 ]
             )
-            artigos.append({"link": link, "conteudo": conteudo_artigo})
+            if not "google.com" in link:
+                artigos.append({"link": link, "conteudo": conteudo_artigo})
         except Exception as e:
             print(f"Erro ao acessar {link}: {str(e)}")
             artigos.append({"link": link, "conteudo": ""})
@@ -255,13 +256,17 @@ def risco_final(df_final):
     return "baixo"
 
 
+def highlight_last(x):
+    """
+    highlight the last row in a Series BOLD.
+    """
+    return ["font-weight: bold" if v == x.iloc[-1] else "" for v in x]
+
+
 def main():
     termo_pesquisa = st.text_input("Digite o termo de pesquisa")
     sujeito = termo_pesquisa
-    termo_pesquisa += " + crime OR lavagem OR sonegacao OR corrupcao OR desvio OR cartel OR doleiro OR operacao OR policia OR preso OR condenado OR ilicito OR prostituicao OR esquema OR trafico OR arm"
-    palavra_indesejada = "absolve OR absolvido"
-    termo_pesquisa += "-" + palavra_indesejada
-    num_links = 50  # Número de links
+    num_links = 10  # Número de links
 
     diretorio_saida = os.path.join(PASTA_RAIZ, "output")
     if not os.path.exists(diretorio_saida):
@@ -275,7 +280,6 @@ def main():
             if html_resultados:
                 links = parsear_html_resultados_pesquisa(html_resultados, num_links)
                 print(f"Total de links obtidos: {len(links)}")
-                st.text(f"Total de links obtidos: {len(links)}")
 
                 # Extrair conteúdo dos links obtidos
                 artigos = extrair_conteudo_links(links)
@@ -329,15 +333,30 @@ def main():
                 df = df.append(extracao1_json, ignore_index=True)
                 arquivo_saida = os.path.join(diretorio_saida, "extracao.csv")
             # df.to_csv(arquivo_saida, sep = ';', index=False)
+
+            # Ordenar por riscos
+            # Definindo a ordem personalizada para a coluna 'Prioridade'
+            ordem_prioridade = pd.Categorical(
+                df["risco"], categories=["alto", "médio", "baixo"], ordered=True
+            )
+
+            # Aplicando a ordem ao DataFrame e ordenando
+            df["risco"] = ordem_prioridade
+            df = df.sort_values("risco")
+
+            # Resumo final
+            json_final = {}
+            json_final["crimes"] = "Resultado da análise:"
+            json_final["resumo"] = extrai_resumo_final(df_final=df)
+            json_final["risco"] = risco_final(df_final=df)
+            df = df.append(json_final, ignore_index=True)
+            df.style.apply(highlight_last)
+
             csv_exportar = df.to_csv(
                 arquivo_saida, sep=";", index=False, encoding="utf-8"
             )
             df.to_excel(f"{diretorio_saida}\extracao.xlsx", index=False)
         AgGrid(df)
-
-        json_final = {}
-        json_final["resumo"] = extrai_resumo_final(df_final=df)
-        json_final["risco"] = risco_final(df_final=df)
 
         arquivo_saida = os.path.join(diretorio_saida, "output_final.json")
         with open(arquivo_saida, "w", encoding="utf-8") as f:
