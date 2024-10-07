@@ -132,6 +132,9 @@ def extrair_conteudo_links(links):
                 and not "youtube.com" in link
                 and not "facebook.com" in link
                 and not "instagram.com" in link
+                and not "transfermarkt.co" in link
+                and not "twitter.com" in link
+                and not "tiktok" in link
             ):
                 artigos.append({"link": link, "conteudo": conteudo_artigo})
         except Exception as e:
@@ -159,7 +162,7 @@ class Extracao:
 
             crimes: str = Field(
                 description="Citação dos crimes em que o indivíduo foi acusado, caso tenha sido acusado de algum, \
-                de maneira sucinta. Não é preciso explicar nenhum crime, somente citá-lo.\
+                de maneira sucinta. Não é preciso explicar nenhum crime, somente citar: nenhum crime mencionado.\
                 Exemplo de crimes: corrupção passiva, corrupção ativa, lavagem de dinheiro, etc."
             )
             risco: str = Field(
@@ -215,9 +218,9 @@ class Extracao:
                 extracao_noticias = tagging_chain.invoke(
                     {"input": self.noticia["texto"], "sujeito": self.sujeito}
                 )
-            extracao_noticias["input_tokens"] = cb.prompt_tokens
-            extracao_noticias["output_tokens"] = cb.completion_tokens
-            extracao_noticias["fonte"] = cb.completion_tokens
+            # extracao_noticias["input_tokens"] = cb.prompt_tokens
+            # extracao_noticias["output_tokens"] = cb.completion_tokens
+            # extracao_noticias["fonte"] = cb.completion_tokens
             extracao_noticias["link"] = self.noticia["link"]
         except Exception as error:
             print(error)
@@ -320,9 +323,9 @@ def main():
                     "crimes",
                     "risco",
                     "resumo",
-                    "input_tokens",
-                    "output_tokens",
-                    "fonte",
+                    # "input_tokens",
+                    # "output_tokens",
+                    # "fonte",
                     "link",
                     "data_consulta",
                 ]
@@ -354,18 +357,42 @@ def main():
             json_final["crimes"] = "Resultado da análise:"
             json_final["resumo"] = extrai_resumo_final(df_final=df)
             json_final["risco"] = risco_final(df_final=df)
-            df = df.append(json_final, ignore_index=True)
-            df.style.apply(highlight_last)
+            # df = df.append(json_final, ignore_index=True)
+            # df.style.apply(highlight_last)
 
             csv_exportar = df.to_csv(
                 arquivo_saida, sep=";", index=False, encoding="utf-8"
             )
             df.to_excel(f"{diretorio_saida}\extracao.xlsx", index=False)
-        AgGrid(df)
 
         arquivo_saida = os.path.join(diretorio_saida, "output_final.json")
         with open(arquivo_saida, "w", encoding="utf-8") as f:
             json.dump(json_final, f, ensure_ascii=False, indent=4)
+
+        #### Display na tela ####
+        st.markdown("**Consulta Realizada:**")
+        st.markdown(termo_pesquisa)
+
+        st.markdown("**Resumo das notícias:**")
+        st.markdown(json_final["resumo"])
+
+        st.markdown("**Risco do Cliente:**")
+        st.markdown(json_final["risco"])
+
+        st.markdown("**Crimes que possam ter relação com as notícias:**")
+
+        crimes_lista = df["crimes"].tolist()
+        crimes_individuais = [
+            crime.strip() for lista in crimes_lista for crime in lista.split(",")
+        ]
+        crimes_unicos = set(
+            [crime for crime in crimes_individuais if "nenhum" not in crime.lower()]
+        )
+        resultado = ", ".join(sorted(crimes_unicos))
+        st.markdown(resultado.lstrip(", "))
+
+        st.markdown("**Detalhes planilhados:**")
+        AgGrid(df)
 
         with open(f"{diretorio_saida}\extracao.xlsx", "rb") as f:
             st.download_button(
