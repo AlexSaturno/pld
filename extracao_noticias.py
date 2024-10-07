@@ -266,7 +266,7 @@ def highlight_last(x):
 def main():
     termo_pesquisa = st.text_input("Digite o termo de pesquisa")
     sujeito = termo_pesquisa
-    num_links = 10  # Número de links
+    num_links = 15  # Número de links
 
     diretorio_saida = os.path.join(PASTA_RAIZ, "output")
     if not os.path.exists(diretorio_saida):
