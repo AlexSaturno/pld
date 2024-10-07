@@ -127,7 +127,12 @@ def extrair_conteudo_links(links):
                     for p in soup.find_all(["p", "div", "span", "article", "section"])
                 ]
             )
-            if not "google.com" in link:
+            if (
+                not "google.com" in link
+                and not "youtube.com" in link
+                and not "facebook.com" in link
+                and not "instagram.com" in link
+            ):
                 artigos.append({"link": link, "conteudo": conteudo_artigo})
         except Exception as e:
             print(f"Erro ao acessar {link}: {str(e)}")
@@ -266,7 +271,7 @@ def highlight_last(x):
 def main():
     termo_pesquisa = st.text_input("Digite o termo de pesquisa")
     sujeito = termo_pesquisa
-    num_links = 15  # Número de links
+    num_links = 20  # Número de links
 
     diretorio_saida = os.path.join(PASTA_RAIZ, "output")
     if not os.path.exists(diretorio_saida):
