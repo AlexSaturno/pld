@@ -129,6 +129,7 @@ def extrair_conteudo_links(links):
             )
             if (
                 not "google.com" in link
+                and not "google.se" in link
                 and not "youtube.com" in link
                 and not "facebook.com" in link
                 and not "instagram.com" in link
@@ -272,9 +273,10 @@ def highlight_last(x):
 
 
 def main():
+    st.title("PLD")
     termo_pesquisa = st.text_input("Digite o termo de pesquisa")
     sujeito = termo_pesquisa
-    num_links = 20  # Número de links
+    num_links = 80  # Número de links
 
     diretorio_saida = os.path.join(PASTA_RAIZ, "output")
     if not os.path.exists(diretorio_saida):
