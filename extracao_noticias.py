@@ -136,6 +136,8 @@ def extrair_conteudo_links(links):
                 and not "transfermarkt.co" in link
                 and not "twitter.com" in link
                 and not "tiktok" in link
+                and not "cnpj.biz" in link
+                and not "econodata" in link
             ):
                 artigos.append({"link": link, "conteudo": conteudo_artigo})
         except Exception as e:
