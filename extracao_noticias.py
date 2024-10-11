@@ -135,9 +135,11 @@ def extrair_conteudo_links(links):
                 and not "instagram.com" in link
                 and not "transfermarkt.co" in link
                 and not "twitter.com" in link
-                and not "tiktok" in link
+                and not "tiktok.com" in link
                 and not "cnpj.biz" in link
                 and not "econodata" in link
+                and not "linkedin.com" in link
+                and not "wikipedia.org" in link
             ):
                 artigos.append({"link": link, "conteudo": conteudo_artigo})
         except Exception as e:
@@ -386,12 +388,18 @@ def main():
         st.markdown("**Crimes que possam ter relação com as notícias:**")
 
         crimes_lista = df["crimes"].tolist()
+        crimes_lista = [
+            crime for crime in crimes_lista if pd.notna(crime)
+        ]  # drop "nan" items
+        print("Crimes lista: ", crimes_lista)
         crimes_individuais = [
             crime.strip() for lista in crimes_lista for crime in lista.split(",")
         ]
+        print("Crimes individuais: ", crimes_individuais)
         crimes_unicos = set(
             [crime for crime in crimes_individuais if "nenhum" not in crime.lower()]
         )
+        print("Crimes únicos: ", crimes_unicos)
         resultado = ", ".join(sorted(crimes_unicos))
         st.markdown(resultado.lstrip(", "))
 
