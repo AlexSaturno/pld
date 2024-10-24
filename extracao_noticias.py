@@ -2,9 +2,10 @@ import json
 import requests
 from bs4 import BeautifulSoup
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 import os
 from datetime import datetime
+import re
 
 # Streamlit
 import streamlit as st
@@ -73,11 +74,14 @@ with open("./styles.css") as f:
 ################################################################################################################################
 
 
-def obter_resultados_pesquisa_google(query):
-    url = f"https://www.google.com/search?q={query}"
+def obter_resultados_pesquisa_google(query, start=0):
+    url = f"https://www.google.com/search?q={query}&start={start}"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/91.0.4472.124 Safari/537.36"
+        )
     }
 
     try:
@@ -95,58 +99,128 @@ def obter_resultados_pesquisa_google(query):
 def parsear_html_resultados_pesquisa(html_content, num_links):
     if html_content:
         soup = BeautifulSoup(html_content, "html.parser")
-        # Encontrar todos os links nos resultados de pesquisa do Google
-        links = soup.find_all("a", href=True)
+
+        result_divs = soup.find_all("div", class_="g")
 
         links_unicos = set()
         count = 0
-        for link in links:
+
+        for div in result_divs:
             if count >= num_links:
                 break
-            url = link["href"]
-            parsed_url = urlparse(url)
-            if parsed_url.scheme in ["http", "https"]:
-                links_unicos.add(url)
-                count += 1
+
+            link_tag = div.find("a", href=True)
+            if link_tag:
+                url = link_tag["href"]
+
+                if url.startswith("/url?q="):
+                    parsed_url = parse_qs(urlparse(url).query)
+                    url = parsed_url.get("q", [None])[0]
+
+                if url and urlparse(url).scheme in ["http", "https"]:
+                    links_unicos.add(url)
+                    count += 1
 
         return list(links_unicos)
     else:
         return []
 
 
+def obter_links_de_varias_paginas(query, num_paginas, num_links_por_pagina=10):
+    todos_os_links = set()
+
+    for pagina in range(num_paginas):
+        start = (
+            pagina * 10
+        )  # Google usa start=0 para a primeira página, start=10 para a segunda, etc.
+        html_content = obter_resultados_pesquisa_google(query, start=start)
+        novos_links = parsear_html_resultados_pesquisa(
+            html_content, num_links_por_pagina
+        )
+
+        if novos_links:
+            todos_os_links.update(novos_links)
+        else:
+            print(f"Sem resultados na página {pagina + 1}. Parando a busca.")
+            break  # Interrompe a busca se não encontrar novos resultados.
+
+    return list(todos_os_links)
+
+
 def extrair_conteudo_links(links):
     artigos = []
     for link in links:
         try:
-            response = requests.get(link, verify=False)
-            soup = BeautifulSoup(response.content, "html.parser")
-            # Capturar todo o texto presente na página
-            conteudo_artigo = " ".join(
-                [
-                    p.get_text()
-                    for p in soup.find_all(["p", "div", "span", "article", "section"])
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+            }
+            response = requests.get(link, verify=False, headers=headers)
+
+            if response.status_code >= 200 and response.status_code < 300:
+                soup = BeautifulSoup(response.content, "html.parser")
+
+                conteudo_artigo = " ".join(
+                    [
+                        p.get_text()
+                        for p in soup.find_all(
+                            ["p", "div", "span", "article", "section"]
+                        )
+                    ]
+                )
+
+                conteudo_artigo_limpo = limpar_conteudo(conteudo_artigo)
+
+                palavras_bloqueio = [
+                    "enable javascript",
+                    "ativar javascript",
+                    "automated requests",
+                    "captcha",
+                    "verify you are human",
+                    "zscaler to protect",
                 ]
-            )
-            if (
-                not "google.com" in link
-                and not "google.se" in link
-                and not "youtube.com" in link
-                and not "facebook.com" in link
-                and not "instagram.com" in link
-                and not "transfermarkt.co" in link
-                and not "twitter.com" in link
-                and not "tiktok.com" in link
-                and not "cnpj.biz" in link
-                and not "econodata" in link
-                and not "linkedin.com" in link
-                and not "wikipedia.org" in link
-            ):
-                artigos.append({"link": link, "conteudo": conteudo_artigo})
-        except Exception as e:
+                site_bloqueio = [
+                    "google.com",
+                    "google.se",
+                    "youtube.com",
+                    "facebook.com",
+                    "instagram.com",
+                    "transfermarkt.co",
+                    "twitter.com",
+                    "tiktok.com",
+                    "linkedin.com",
+                    "wikipedia.org",
+                ]
+
+                # bloqueio_detectado = False
+                bloqueio_detectado = any(
+                    palavra in conteudo_artigo_limpo.lower()
+                    for palavra in palavras_bloqueio
+                ) or any(site in link for site in site_bloqueio)
+
+                if not bloqueio_detectado:
+                    artigos.append({"link": link, "conteudo": conteudo_artigo_limpo})
+                else:
+                    print(
+                        f"Ignorando {link}: Bloqueio de automação detectado ou requer JavaScript"
+                    )
+                    artigos.append({"link": link, "conteudo": ""})
+            else:
+                print(
+                    f"Ignorando {link}: Resposta com status code {response.status_code}"
+                )
+                artigos.append({"link": link, "conteudo": ""})  #
+        except requests.exceptions.RequestException as e:
             print(f"Erro ao acessar {link}: {str(e)}")
             artigos.append({"link": link, "conteudo": ""})
 
     return artigos
+
+
+def limpar_conteudo(conteudo):
+    conteudo_limpo = conteudo.replace("\\", "").replace("\n", "").replace("\r", " ")
+    conteudo_limpo = re.sub(" +", " ", conteudo_limpo)
+
+    return conteudo_limpo.strip()
 
 
 class Extracao:
@@ -280,7 +354,8 @@ def main():
     st.title("PLD")
     termo_pesquisa = st.text_input("Digite o termo de pesquisa")
     sujeito = termo_pesquisa
-    num_links = 80  # Número de links
+    # num_links = 80
+    num_paginas = st.text_input("Digite a quantidade de páginas pesquisadas no Google")
 
     diretorio_saida = os.path.join(PASTA_RAIZ, "output")
     if not os.path.exists(diretorio_saida):
@@ -288,11 +363,12 @@ def main():
 
     if st.button("Iniciar pesquisa"):
         with st.spinner("Pesquisando..."):
-            html_resultados = obter_resultados_pesquisa_google(termo_pesquisa)
+            # html_resultados = obter_resultados_pesquisa_google(termo_pesquisa)
+            links = obter_links_de_varias_paginas(termo_pesquisa, int(num_paginas))
 
             # Obter os links
-            if html_resultados:
-                links = parsear_html_resultados_pesquisa(html_resultados, num_links)
+            if links:
+                # links = parsear_html_resultados_pesquisa(html_resultados, num_links)
                 print(f"Total de links obtidos: {len(links)}")
 
                 # Extrair conteúdo dos links obtidos
@@ -344,7 +420,8 @@ def main():
                 extracao1_json = extracao1.extrai_json()
                 extracao1_json["data_consulta"] = noticias["Data de Pesquisa"]
 
-                df = df.append(extracao1_json, ignore_index=True)
+                df = pd.concat([df, pd.DataFrame([extracao1_json])], ignore_index=True)
+                # df = df.append(extracao1_json, ignore_index=True)
                 arquivo_saida = os.path.join(diretorio_saida, "extracao.csv")
             # df.to_csv(arquivo_saida, sep = ';', index=False)
 
